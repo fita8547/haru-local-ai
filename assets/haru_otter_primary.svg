@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 220" role="img" aria-labelledby="title desc">
+  <title id="title">하루 수달 로컬 AI 심볼</title>
+  <desc id="desc">그린 원 안의 웃는 수달 얼굴과 음성 파형</desc>
+  <circle cx="142" cy="110" r="92" fill="#176B45"/>
+  <circle cx="82" cy="61" r="20" fill="#18201D"/>
+  <circle cx="202" cy="61" r="20" fill="#18201D"/>
+  <ellipse cx="142" cy="126" rx="69" ry="59" fill="#F6F8F5"/>
+  <circle cx="117" cy="112" r="8" fill="#18201D"/>
+  <circle cx="167" cy="112" r="8" fill="#18201D"/>
+  <ellipse cx="142" cy="129" rx="14" ry="9" fill="#18201D"/>
+  <path d="M126 143c8 17 24 17 32 0-10 7-22 7-32 0Z" fill="#BDECCF" stroke="#18201D" stroke-width="4" stroke-linejoin="round"/>
+  <g fill="none" stroke="#18201D" stroke-width="5" stroke-linecap="round">
+    <path d="M112 132 72 121M112 143 67 143M172 132l40-11M172 143l45 0"/>
+  </g>
+  <g fill="none" stroke="#55B98B" stroke-width="9" stroke-linecap="round">
+    <path d="M263 75c21 22 21 48 0 70"/>
+    <path d="M292 58c31 31 31 73 0 104"/>
+  </g>
+</svg>
