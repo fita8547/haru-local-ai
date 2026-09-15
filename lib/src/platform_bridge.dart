@@ -42,4 +42,12 @@ class PlatformBridge {
     });
     return answer ?? '';
   }
+
+  Future<bool> dailyReminderEnabled() async {
+    return await _channel.invokeMethod<bool>('getDailyReminder') ?? true;
+  }
+
+  Future<void> setDailyReminder(bool enabled) async {
+    await _channel.invokeMethod<void>('setDailyReminder', {'enabled': enabled});
+  }
 }

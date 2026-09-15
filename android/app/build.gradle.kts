@@ -46,6 +46,7 @@ flutter {
 }
 
 dependencies {
+    implementation("androidx.core:core-ktx:1.15.0")
     implementation(project(":llama_cpp"))
     implementation(project(":whisper_cpp"))
 }

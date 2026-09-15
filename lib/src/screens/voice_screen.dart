@@ -33,15 +33,22 @@ class _VoiceScreenState extends State<VoiceScreen> {
   String heard = '';
   String answer = '';
   String detail = '로컬 AI를 확인하고 있어요';
+  bool reminderEnabled = true;
 
   @override
   void initState() {
     super.initState();
     bridge.setEventHandler(onNativeEvent);
     refreshModelStatus();
+    loadReminderSetting();
     clock = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() => now = DateTime.now());
     });
+  }
+
+  Future<void> loadReminderSetting() async {
+    final enabled = await bridge.dailyReminderEnabled();
+    if (mounted) setState(() => reminderEnabled = enabled);
   }
 
   @override
@@ -184,35 +191,50 @@ class _VoiceScreenState extends State<VoiceScreen> {
   }
 
   void showHaruInfo() {
+    var sheetReminderEnabled = reminderEnabled;
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       backgroundColor: const Color(0xFFF6F8F5),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('하루', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 16),
-              const ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.phone_android_rounded, color: Color(0xFF176B45)),
-                title: Text('온디바이스 · 오프라인'),
-              ),
-              const ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.history_toggle_off_rounded, color: Color(0xFF176B45)),
-                title: Text('대화 14회 · 자동 정리'),
-              ),
-              const ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.edit_note_rounded, color: Color(0xFF176B45)),
-                title: Text('음성 수정 · 텍스트 보내기'),
-              ),
-            ],
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('하루', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 16),
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.phone_android_rounded, color: Color(0xFF176B45)),
+                  title: Text('온디바이스'),
+                ),
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.history_toggle_off_rounded, color: Color(0xFF176B45)),
+                  title: Text('대화 14회 · 자동 정리'),
+                ),
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.edit_note_rounded, color: Color(0xFF176B45)),
+                  title: Text('음성 수정 · 텍스트 보내기'),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: const Icon(Icons.notifications_none_rounded, color: Color(0xFF176B45)),
+                  title: const Text('하루 알림'),
+                  value: sheetReminderEnabled,
+                  activeColor: const Color(0xFF176B45),
+                  onChanged: (enabled) async {
+                    setSheetState(() => sheetReminderEnabled = enabled);
+                    await bridge.setDailyReminder(enabled);
+                    if (mounted) setState(() => reminderEnabled = enabled);
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -247,12 +269,6 @@ class _VoiceScreenState extends State<VoiceScreen> {
                     ],
                   ),
                   const Spacer(),
-                  const Icon(Icons.lock_outline_rounded, size: 17),
-                  const SizedBox(width: 5),
-                  const Text(
-                    '오프라인',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
                 ],
               ),
               const SizedBox(height: 18),

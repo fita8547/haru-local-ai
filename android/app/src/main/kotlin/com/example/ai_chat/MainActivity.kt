@@ -1,7 +1,10 @@
 package com.example.ai_chat
 
 import android.Manifest
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.pm.PackageManager
+import android.content.Intent
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
@@ -31,17 +34,18 @@ import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.Calendar
 
 class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
     companion object {
         private const val CHANNEL_NAME = "app.haru/native"
         private const val AUDIO_PERMISSION_REQUEST_CODE = 4302
-        private const val MODEL_FILE = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
-        private const val MODEL_SIZE = 1_120_000_000L
+        private const val MODEL_FILE = "Qwen3-1.7B-Q4_K_M.gguf"
+        private const val MODEL_SIZE = 1_280_000_000L
         private const val MODEL_SHA256 =
-            "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e"
+            "d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5"
         private const val MODEL_URL =
-            "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/" +
+            "https://huggingface.co/ggml-org/Qwen3-1.7B-GGUF/resolve/main/" +
                 MODEL_FILE + "?download=true"
         private const val ASR_FILE = "ggml-tiny.bin"
         private const val ASR_SIZE = 75_000_000L
@@ -63,7 +67,7 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
     private var lastInteractionAt = 0L
     private var turnsSinceReset = 0
     private val systemPrompt =
-        "너는 하루라는 한국어 감정 대화 동반자다. " +
+        "/no_think. 너는 하루라는 한국어 감정 대화 동반자다. " +
             "사용자가 오늘 힘들었던 일을 털어놓으면 먼저 감정을 인정하고 차분히 들어준다. " +
             "사용자가 원하는 역할이나 상황이 분명하지 않으면, 무엇을 해주면 좋을지 짧게 하나만 물어본다. " +
             "위로나 정리, 현실적인 조언 중 사용자가 원하는 방식을 확인한 뒤 그 역할에 맞춰 답한다. " +
@@ -76,7 +80,7 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
     private val modelFile by lazy { File(filesDir, MODEL_FILE) }
     private val asrFile by lazy { File(filesDir, ASR_FILE) }
     private val oldLargeModelFile by lazy {
-        File(filesDir, "qwen2.5-0.5b-instruct-q4_k_m.gguf")
+        File(filesDir, "qwen2.5-1.5b-instruct-q4_k_m.gguf")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -112,8 +116,20 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
                 "modelStatus" -> result.success(modelStatus())
                 "installModel" -> installModel(result)
                 "askLocal" -> askLocal(call.argument<String>("prompt").orEmpty(), result)
+                "getDailyReminder" -> result.success(dailyReminderEnabled())
+                "setDailyReminder" -> {
+                    val enabled = call.argument<Boolean>("enabled") == true
+                    setDailyReminder(enabled)
+                    result.success(enabled)
+                }
                 else -> result.notImplemented()
             }
+        }
+        val preferences = getSharedPreferences("haru", MODE_PRIVATE)
+        if (!preferences.contains("daily_reminder")) {
+            setDailyReminder(true)
+        } else if (preferences.getBoolean("daily_reminder", true)) {
+            setDailyReminder(true)
         }
 
         if (modelFile.exists() && modelFile.length() > MODEL_SIZE * 9 / 10) {
@@ -142,8 +158,44 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
         "downloading" to downloading,
         "bytes" to listOf(modelFile, asrFile).sumOf { if (it.exists()) it.length() else 0L },
         "requiredBytes" to MODEL_SIZE + ASR_SIZE,
-        "name" to "Qwen2.5 0.5B Q4"
+        "name" to "Qwen3 1.7B Q4"
     )
+
+    private fun dailyReminderEnabled(): Boolean =
+        getSharedPreferences("haru", MODE_PRIVATE).getBoolean("daily_reminder", true)
+
+    private fun setDailyReminder(enabled: Boolean) {
+        getSharedPreferences("haru", MODE_PRIVATE).edit()
+            .putBoolean("daily_reminder", enabled).apply()
+        val alarmManager = getSystemService(AlarmManager::class.java)
+        val intent = Intent(this, DailyReminderReceiver::class.java)
+        val pending = PendingIntent.getBroadcast(
+            this, 1001, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        if (!enabled) {
+            alarmManager.cancel(pending)
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1002)
+        }
+        val next = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 9)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            if (timeInMillis <= System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR, 1)
+        }
+        alarmManager.setInexactRepeating(
+            AlarmManager.RTC_WAKEUP,
+            next.timeInMillis,
+            AlarmManager.INTERVAL_DAY,
+            pending
+        )
+    }
 
     private fun installModel(result: MethodChannel.Result) {
         if (downloading) {
@@ -305,7 +357,7 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
                 }
                 engine!!.sendUserPrompt(
                     userPrompt,
-                    192
+                    128
                 ).collect { answer.append(it) }
                 turnsSinceReset += 1
                 answer.toString().trim()
